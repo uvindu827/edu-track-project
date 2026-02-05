@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, User, LayoutDashboard, Users, PlusCircle } from 'lucide-react';
+import { LogOut, User, LayoutDashboard, Users, PlusCircle, ShieldCheck } from 'lucide-react';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import TeacherList from './pages/TeacherList';
@@ -9,21 +9,49 @@ import TeacherDetails from './pages/TeacherDetails';
 import TeacherForm from './pages/TeacherForm';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const isAuthenticated = localStorage.getItem('isLoggedIn') === 'true';
+  const [isAuthenticated, setIsAuthenticated] = useState(localStorage.getItem('isLoggedIn') === 'true');
+
+  useEffect(() => {
+    const checkAuth = () => {
+      setIsAuthenticated(localStorage.getItem('isLoggedIn') === 'true');
+    };
+    window.addEventListener('authChange', checkAuth);
+    return () => window.removeEventListener('authChange', checkAuth);
+  }, []);
+
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
 };
 
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const isAdmin = localStorage.getItem('isLoggedIn') === 'true';
-  const userType = localStorage.getItem('userType');
-  const userName = localStorage.getItem('userName') || 'Admin';
+  const [auth, setAuth] = useState({
+    isLoggedIn: localStorage.getItem('isLoggedIn') === 'true',
+    userType: localStorage.getItem('userType'),
+    userName: localStorage.getItem('userName') || 'Admin',
+    userPhoto: localStorage.getItem('userPhoto'),
+    userEmail: localStorage.getItem('userEmail')
+  });
 
-  if (!isAdmin) return null;
+  useEffect(() => {
+    const handleAuthChange = () => {
+      setAuth({
+        isLoggedIn: localStorage.getItem('isLoggedIn') === 'true',
+        userType: localStorage.getItem('userType'),
+        userName: localStorage.getItem('userName') || 'Admin',
+        userPhoto: localStorage.getItem('userPhoto'),
+        userEmail: localStorage.getItem('userEmail')
+      });
+    };
+    window.addEventListener('authChange', handleAuthChange);
+    return () => window.removeEventListener('authChange', handleAuthChange);
+  }, []);
+
+  if (!auth.isLoggedIn) return null;
 
   const handleLogout = () => {
     localStorage.clear();
+    window.dispatchEvent(new Event('authChange'));
     navigate('/login');
   };
 
@@ -38,21 +66,21 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-8">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="bg-white p-1 rounded-md">
+            <Link to="/" className="flex items-center gap-2 group">
+              <div className="bg-white p-1 rounded-lg transition-transform group-hover:scale-110">
                 <Users className="text-indigo-700" size={24} />
               </div>
-              <span className="font-bold text-xl tracking-tight">EduTrack</span>
+              <span className="font-extrabold text-xl tracking-tight">EduTrack</span>
             </Link>
             
-            <div className="hidden md:flex space-x-4">
+            <div className="hidden md:flex space-x-1">
               {navItems.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
                     location.pathname === item.path 
-                      ? 'bg-indigo-800 text-white' 
+                      ? 'bg-indigo-800 text-white shadow-inner' 
                       : 'hover:bg-indigo-600 text-indigo-100'
                   }`}
                 >
@@ -64,20 +92,29 @@ const Navbar = () => {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-indigo-100 mr-2 bg-indigo-800/50 px-3 py-1.5 rounded-full border border-indigo-500/30">
-              {userType === 'google' ? (
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="G" />
+            <div className="flex items-center gap-3 pl-3 pr-4 py-1.5 bg-indigo-800/60 rounded-full border border-indigo-500/30 group cursor-default">
+              {auth.userPhoto ? (
+                <img src={auth.userPhoto} className="w-8 h-8 rounded-full border-2 border-indigo-400 shadow-sm" alt="Profile" />
               ) : (
-                <User size={16} />
+                <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white">
+                  <User size={16} />
+                </div>
               )}
-              <span className="hidden sm:inline font-medium">{userName}</span>
+              <div className="hidden sm:flex flex-col items-start leading-none">
+                <span className="text-sm font-bold text-white flex items-center gap-1">
+                  {auth.userName}
+                  {auth.userType === 'google' && <ShieldCheck size={12} className="text-emerald-400" />}
+                </span>
+                <span className="text-[10px] text-indigo-200 mt-0.5">{auth.userEmail}</span>
+              </div>
             </div>
+            
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 bg-indigo-800 hover:bg-red-600 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+              className="p-2.5 bg-indigo-800 hover:bg-red-500 rounded-xl transition-all shadow-md group active:scale-95"
+              title="Logout"
             >
-              <LogOut size={18} />
-              <span className="hidden sm:inline">Logout</span>
+              <LogOut size={20} className="group-hover:translate-x-0.5 transition-transform" />
             </button>
           </div>
         </div>
@@ -129,9 +166,22 @@ export default function App() {
           </Routes>
         </main>
         
-        <footer className="bg-white border-t py-6">
-          <div className="max-w-7xl mx-auto px-4 text-center text-slate-500 text-sm">
-            &copy; {new Date().getFullYear()} EduTrack School Administration System. All rights reserved.
+        <footer className="bg-white border-t py-8">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2 text-indigo-600 font-bold">
+                <Users size={20} />
+                <span>EduTrack Admin</span>
+              </div>
+              <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">
+                &copy; {new Date().getFullYear()} School Administration System
+              </p>
+              <div className="flex gap-6 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                <a href="#" className="hover:text-indigo-600">Privacy</a>
+                <a href="#" className="hover:text-indigo-600">Terms</a>
+                <a href="#" className="hover:text-indigo-600">Support</a>
+              </div>
+            </div>
           </div>
         </footer>
       </div>
